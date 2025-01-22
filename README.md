@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="public/img/logo.svg" width="200" alt="Seojen Logo">
+    <img src="https://webmarka.com/frontend/img/logo.svg" width="200" alt="Seojen Logo">
 </p>
 
 <h1 align="center">Seojen - Açık Kaynak SEO Analiz Aracı</h1>
