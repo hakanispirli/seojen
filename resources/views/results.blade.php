@@ -38,6 +38,7 @@
             @include('results.baslik_analizi')
             @include('results.url_analizi')
             @include('results.teknik_analiz')
+            @include('results.link_analizi')
             @include('results.performance_metrics')
             @include('results.gorsel_analizi')
         </div>

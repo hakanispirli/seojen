@@ -34,7 +34,7 @@ Seojen, web sitelerinin SEO performansını analiz eden açık kaynak kodlu bir 
   - XML Sitemap kontrolü
 
 - **Modern Teknolojiler**
-  - Laravel 10
+  - Laravel 11
   - TailwindCSS
   - Alpine.js
   - MySQL

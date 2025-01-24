@@ -16,17 +16,28 @@
                 </a>
             </div>
 
-            <!-- Navigation -->
-            <div class="flex items-center space-x-1">
-                <a href="#features"
-                    class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-900 rounded-lg hover:bg-gray-100/50 transition-all duration-200">
+            <!-- Navigation with Dropdown -->
+            <div class="flex items-center space-x-4 relative group">
+                <a href="#features" class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-900 rounded-lg hover:bg-gray-100/50 transition-all duration-200">
                     Özellikler
                 </a>
-                <a href="#how-it-works"
-                    class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-900 rounded-lg hover:bg-gray-100/50 transition-all duration-200">
+                <a href="#how-it-works" class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-900 rounded-lg hover:bg-gray-100/50 transition-all duration-200">
                     Nasıl Çalışır?
                 </a>
+
+                <div class="relative">
+                    <button class="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-900 rounded-lg hover:bg-gray-100/50 transition-all duration-200 flex items-center">
+                        Araçlar
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div class="hidden group-hover:block absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg">
+                        <a href="{{route('tools.keyword-density.index')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Anahtar Kelime Analizi</a>
+                        <a href="{{route('tools.robots.index')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Robots.txt Oluşturucu</a>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>
-</header>
+ </header>

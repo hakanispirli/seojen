@@ -9,6 +9,7 @@ use App\Services\SeoAnalyzer\ImageAnalyzerService;
 use App\Services\SeoAnalyzer\PerformanceAnalyzerService;
 use App\Services\SeoAnalyzer\UrlAnalyzerService;
 use App\Services\SeoAnalyzer\TechnicalSeoAnalyzerService;
+use App\Services\SeoAnalyzer\LinkAnalyzerService;
 
 class SeoAnalyzerService
 {
@@ -19,6 +20,7 @@ class SeoAnalyzerService
     private $performanceAnalyzer;
     private $urlAnalyzer;
     private $technicalAnalyzer;
+    private $linkAnalyzer;
 
     public function __construct(
         HttpClientService $httpClient,
@@ -27,7 +29,8 @@ class SeoAnalyzerService
         ImageAnalyzerService $imageAnalyzer,
         PerformanceAnalyzerService $performanceAnalyzer,
         UrlAnalyzerService $urlAnalyzer,
-        TechnicalSeoAnalyzerService $technicalAnalyzer
+        TechnicalSeoAnalyzerService $technicalAnalyzer,
+        LinkAnalyzerService $linkAnalyzer
     ) {
         $this->httpClient = $httpClient;
         $this->metaAnalyzer = $metaAnalyzer;
@@ -36,6 +39,7 @@ class SeoAnalyzerService
         $this->performanceAnalyzer = $performanceAnalyzer;
         $this->urlAnalyzer = $urlAnalyzer;
         $this->technicalAnalyzer = $technicalAnalyzer;
+        $this->linkAnalyzer = $linkAnalyzer;
     }
 
     public function analyze(string $url): array
@@ -50,6 +54,7 @@ class SeoAnalyzerService
             $performanceAnalysis = $this->performanceAnalyzer->analyze($html, $response['stats']);
             $urlAnalysis = $this->urlAnalyzer->analyze($url);
             $technicalAnalysis = $this->technicalAnalyzer->analyze($url);
+            $linkAnalysis = $this->linkAnalyzer->analyze($url, $html);
 
             return [
                 'url' => $url,
@@ -59,13 +64,15 @@ class SeoAnalyzerService
                 'performance_analysis' => $performanceAnalysis,
                 'url_analysis' => $urlAnalysis,
                 'technical_analysis' => $technicalAnalysis,
+                'link_analysis' => $linkAnalysis,
                 'overall_score' => $this->calculateOverallScore([
                     $metaAnalysis['score'],
                     $headingAnalysis['score'],
                     $imageAnalysis['score'],
                     $performanceAnalysis['optimization_score'],
                     $urlAnalysis['score'],
-                    $technicalAnalysis['score']
+                    $technicalAnalysis['score'],
+                    $linkAnalysis['score']
                 ])
             ];
         } catch (\Exception $e) {

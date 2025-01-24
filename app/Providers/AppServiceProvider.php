@@ -11,6 +11,7 @@ use App\Services\SeoAnalyzer\ImageAnalyzerService;
 use App\Services\SeoAnalyzer\PerformanceAnalyzerService;
 use App\Services\SeoAnalyzer\UrlAnalyzerService;
 use App\Services\SeoAnalyzer\TechnicalSeoAnalyzerService;
+use App\Services\SeoAnalyzer\LinkAnalyzerService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -49,6 +50,10 @@ class AppServiceProvider extends ServiceProvider
             return new TechnicalSeoAnalyzerService($app->make(HttpClientService::class));
         });
 
+        $this->app->bind(LinkAnalyzerService::class, function ($app) {
+            return new LinkAnalyzerService($app->make(HttpClientService::class));
+        });
+
         // Ana SEO Analyzer servisi
         $this->app->bind(SeoAnalyzerService::class, function ($app) {
             return new SeoAnalyzerService(
@@ -58,7 +63,8 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(ImageAnalyzerService::class),
                 $app->make(PerformanceAnalyzerService::class),
                 $app->make(UrlAnalyzerService::class),
-                $app->make(TechnicalSeoAnalyzerService::class)
+                $app->make(TechnicalSeoAnalyzerService::class),
+                $app->make(LinkAnalyzerService::class)
             );
         });
     }
