@@ -34,6 +34,23 @@ class SemController extends Controller
     }
 
     /**
+     * Prepare domain for search by removing www and handling various formats
+     */
+    protected function prepareDomain($domain)
+    {
+        // Remove www. if present
+        $domain = preg_replace('/^www\./', '', $domain);
+        
+        // Ensure domain is properly formatted
+        $domain = trim($domain);
+        
+        // Log the prepared domain
+        Log::info("Prepared domain for search: {$domain}");
+        
+        return $domain;
+    }
+
+    /**
      * Process the search request
      */
     public function search(Request $request)
@@ -71,8 +88,13 @@ class SemController extends Controller
             return redirect()->back()->with('error', 'Invalid website URL format')->withInput();
         }
 
-        // Remove www. if present
-        $domain = preg_replace('/^www\./', '', $domain);
+        // Prepare domain for search
+        $domain = $this->prepareDomain($domain);
+        
+        // Log the domain and TLD for debugging
+        $domainParts = explode('.', $domain);
+        $tld = end($domainParts);
+        Log::info("Processing search for domain: {$domain} with TLD: {$tld}");
 
         // Process the search
         try {
@@ -192,22 +214,31 @@ class SemController extends Controller
         // Random user agent to avoid blocking
         $userAgent = $this->userAgents[array_rand($this->userAgents)];
 
+        // Enhance the search query with site-specific parameters if needed
         $params = [
             'q' => $keyword,
             'start' => $start,
             'num' => 10,
-            'hl' => 'en',
-            'gl' => 'us',
+            'hl' => 'en',   // Language for search interface
+            'gl' => 'us',   // Geographic location
+            'safe' => 'off', // No safesearch
+            'filter' => '0', // Show all results, don't filter similar results
+            'pws' => '0',    // Don't personalize search results
         ];
 
         try {
+            Log::info("Searching Google for: {$keyword} (start: {$start})");
+            
             $response = Http::withHeaders([
                 'User-Agent' => $userAgent,
                 'Accept-Language' => 'en-US,en;q=0.9',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            ])->timeout(10)->get($this->searchBaseUrl, $params);
+                'Cache-Control' => 'no-cache',
+                'Pragma' => 'no-cache',
+            ])->timeout(15)->get($this->searchBaseUrl, $params);
 
             if ($response->successful()) {
+                Log::info("Search successful, received " . strlen($response->body()) . " bytes");
                 return $response->body();
             }
 
@@ -240,6 +271,15 @@ class SemController extends Controller
         $searchResults = $xpath->query('//div[@class="g"]');
 
         $position = $start + 1;
+        
+        // Add domain variations for more accurate matching
+        $domainPatterns = [
+            $domain,
+            // Also try with www. prefix in case the parsed URL doesn't include it
+            'www.' . $domain
+        ];
+        
+        Log::info('Searching for domain patterns: ' . implode(', ', $domainPatterns));
 
         foreach ($searchResults as $result) {
             // Extract URL from the result
@@ -254,9 +294,31 @@ class SemController extends Controller
                     $url = preg_replace('/^.*?\/url\?q=([^&]+)&.*$/', '$1', $url);
                     $url = urldecode($url);
                 }
+                
+                // Extract the host from the URL for more accurate matching
+                $urlHost = parse_url($url, PHP_URL_HOST);
+                if (!$urlHost) {
+                    $urlHost = ''; // Handle case where parse_url fails
+                }
+                
+                // Remove 'www.' from the URL host for consistent comparison
+                $urlHost = preg_replace('/^www\./', '', $urlHost);
+                
+                // Check if the URL or URL host matches our domain
+                $isDomainMatch = false;
+                
+                // First, check exact host match (best match)
+                if ($urlHost === $domain) {
+                    $isDomainMatch = true;
+                    Log::debug("Exact domain match found: {$urlHost} === {$domain}");
+                } 
+                // Then check if domain is contained in URL (more permissive)
+                else if (strpos($url, $domain) !== false) {
+                    $isDomainMatch = true;
+                    Log::debug("Domain contained in URL: {$domain} found in {$url}");
+                }
 
-                // Check if the URL contains our domain
-                if (strpos($url, $domain) !== false) {
+                if ($isDomainMatch) {
                     // Extract the title
                     $titleNodes = $xpath->query('.//h3', $result);
                     $title = $titleNodes->length > 0 ? $titleNodes->item(0)->textContent : '';
@@ -268,7 +330,10 @@ class SemController extends Controller
                         'title' => $title,
                         'type' => 'organic', // Default to organic results
                         'is_target' => true, // Mark as target since it contains our domain
+                        'matched_domain' => $domain, // Store which domain pattern matched
                     ];
+                    
+                    Log::info("Found match at position {$position} for domain {$domain}: {$url}");
                 }
             }
 

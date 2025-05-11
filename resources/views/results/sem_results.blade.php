@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('content')
-<div class="border-b pb-6 mb-6">
+<div class="border-b pb-6 mb-6 mt-6">
     <div class="text-center mb-6">
         <h2 class="inline-flex items-center px-4 py-2 bg-gray-100 rounded-full">
             <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,8 +99,8 @@
                                     <td class="py-2 px-3 text-sm text-gray-700 truncate max-w-xs">{{ $position['title'] }}</td>
                                     <td class="py-2 px-3 text-sm">
                                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                        {{ isset($position['type']) ? ($position['type'] == 'organic' ? 'bg-green-100 text-green-800' : 
-                                          ($position['type'] == 'paid' ? 'bg-purple-100 text-purple-800' : 
+                                        {{ isset($position['type']) ? ($position['type'] == 'organic' ? 'bg-green-100 text-green-800' :
+                                          ($position['type'] == 'paid' ? 'bg-purple-100 text-purple-800' :
                                           'bg-gray-100 text-gray-800')) : 'bg-green-100 text-green-800' }}">
                                             {{ isset($position['type']) ? ucfirst($position['type']) : 'Organic' }}
                                         </span>
