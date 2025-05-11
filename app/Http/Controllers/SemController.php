@@ -166,43 +166,100 @@ class SemController extends Controller
             'found' => false,
             'total_results' => 0,
             'timestamp' => time(),
+            'search_time' => 0, // Track how long the search takes
         ];
-
+        
+        $startTime = microtime(true);
+        
+        // Determine if keyword is a domain name or contains a domain name
+        $isDomainSearch = (stripos($keyword, $domain) !== false) || 
+                          filter_var($keyword, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME);
+        
+        // For domain searches, we'll try multiple search variants
+        $searchQueries = [$keyword]; // Default to just the keyword
+        
+        if ($isDomainSearch) {
+            Log::info("Detected domain in keyword: {$keyword}");
+            // Add a site: search to help find the exact domain
+            $searchQueries[] = "site:{$domain}";
+            // Also search for the domain with quotes to get exact matches
+            $searchQueries[] = "\"{$domain}\"";
+        }
+        
         $resultsPerPage = 10;
-        $searchDelay = rand(1, 3); // Random delay between searches to avoid blocking
+        $searchDelay = rand(1, 2); // Slightly reduced delay to avoid long waits
 
-        for ($page = 0; $page < $pages; $page++) {
-            // Wait a bit before each request (except the first one)
-            if ($page > 0) {
-                sleep($searchDelay);
+        // Try each search query until we find results
+        foreach ($searchQueries as $searchQuery) {
+            Log::info("Trying search query: {$searchQuery}");
+            $tempResults = [
+                'positions' => [],
+                'found' => false,
+                'total_results' => 0,
+            ];
+            
+            // Search through requested number of pages
+            for ($page = 0; $page < $pages; $page++) {
+                // Wait a bit before each request (except the first one)
+                if ($page > 0) {
+                    sleep($searchDelay);
+                }
+
+                $start = $page * $resultsPerPage;
+                $html = $this->fetchSearchResults($searchQuery, $start);
+
+                if (!$html) {
+                    Log::warning("Failed to fetch results for page " . ($page+1));
+                    continue;
+                }
+
+                $positions = $this->parseSearchResults($html, $domain, $start);
+
+                // Add found positions to the temp results
+                if (!empty($positions)) {
+                    $tempResults['positions'] = array_merge($tempResults['positions'], $positions);
+                    $tempResults['found'] = true;
+                }
+
+                // Extract total results count (only need to do this once)
+                if ($page === 0 && $tempResults['total_results'] === 0) {
+                    $tempResults['total_results'] = $this->extractTotalResults($html);
+                    Log::info("Total results found: {$tempResults['total_results']} for query: {$searchQuery}");
+                }
+
+                // If we've found positions and not checking all pages, we can stop searching this query
+                if (!empty($positions) && !$checkAllPages) {
+                    break;
+                }
             }
-
-            $start = $page * $resultsPerPage;
-            $html = $this->fetchSearchResults($keyword, $start);
-
-            if (!$html) {
-                continue;
-            }
-
-            $positions = $this->parseSearchResults($html, $domain, $start);
-
-            // Add found positions to the result
-            if (!empty($positions)) {
-                $result['positions'] = array_merge($result['positions'], $positions);
+            
+            // If we found positions with this query, use these results and stop trying other queries
+            if ($tempResults['found']) {
+                $result['positions'] = $tempResults['positions'];
                 $result['found'] = true;
-            }
-
-            // Extract total results count (only need to do this once)
-            if ($page === 0) {
-                $result['total_results'] = $this->extractTotalResults($html);
-            }
-
-            // If we've found positions and not checking all pages, we can stop searching
-            if (!empty($positions) && !$checkAllPages) {
+                $result['total_results'] = $tempResults['total_results'];
+                
+                Log::info("Found positions using query: {$searchQuery}. Stopping search.");
                 break;
             }
+            
+            // If we didn't find anything but got total results, at least record that
+            if ($tempResults['total_results'] > 0 && $result['total_results'] === 0) {
+                $result['total_results'] = $tempResults['total_results'];
+            }
         }
-
+        
+        // Sort positions by position number
+        if (!empty($result['positions'])) {
+            usort($result['positions'], function($a, $b) {
+                return $a['position'] - $b['position'];
+            });
+        }
+        
+        // Calculate search time in seconds
+        $result['search_time'] = round(microtime(true) - $startTime, 2);
+        Log::info("Search completed in {$result['search_time']} seconds");
+        
         return $result;
     }
 
@@ -238,8 +295,16 @@ class SemController extends Controller
             ])->timeout(15)->get($this->searchBaseUrl, $params);
 
             if ($response->successful()) {
-                Log::info("Search successful, received " . strlen($response->body()) . " bytes");
-                return $response->body();
+                $responseBody = $response->body();
+                $responseSize = strlen($responseBody);
+                Log::info("Search successful, received {$responseSize} bytes");
+                
+                // For debugging, save a sample of the HTML response
+                if ($start === 0) {
+                    Log::debug("HTML Response Sample: " . substr($responseBody, 0, 500) . "...");
+                }
+                
+                return $responseBody;
             }
 
             Log::error('Google search error: ' . $response->status() . ' - ' . $response->body());
@@ -267,79 +332,149 @@ class SemController extends Controller
 
         $xpath = new DOMXPath($dom);
 
-        // Find all search results (this selector may need adjusting based on Google's current HTML structure)
-        $searchResults = $xpath->query('//div[@class="g"]');
-
-        $position = $start + 1;
-        
-        // Add domain variations for more accurate matching
-        $domainPatterns = [
-            $domain,
-            // Also try with www. prefix in case the parsed URL doesn't include it
-            'www.' . $domain
+        // Find all search results - try multiple possible selectors because Google changes their HTML structure often
+        $searchSelectors = [
+            '//div[@class="g"]',           // Standard Google result container
+            '//div[contains(@class, "g")]', // Variation with additional classes
+            '//div[contains(@class, "tF2Cxc")]', // Another common result container
+            '//div[contains(@class, "yuRUbf")]', // Link container in results
+            '//div[@data-sokoban-container]' // Data attribute sometimes used
         ];
         
-        Log::info('Searching for domain patterns: ' . implode(', ', $domainPatterns));
+        $resultsCount = 0;
+        $position = $start + 1;
+        
+        // Try each selector until we find results
+        foreach ($searchSelectors as $selector) {
+            $searchResults = $xpath->query($selector);
+            $resultsCount = $searchResults->length;
+            
+            if ($resultsCount > 0) {
+                Log::info("Found {$resultsCount} results using selector: {$selector}");
+                break;
+            }
+        }
+        
+        if ($resultsCount === 0) {
+            Log::warning("No search results found with any selector. HTML structure may have changed.");
+            return $positions;
+        }
 
+        // Process each search result
         foreach ($searchResults as $result) {
-            // Extract URL from the result
-            $linkNodes = $xpath->query('.//a[@href]', $result);
-
-            if ($linkNodes->length > 0) {
-                // Get the URL from the first link
-                $url = $linkNodes->item(0)->getAttribute('href');
-
-                // If URL is a Google redirect, extract the actual URL
-                if (strpos($url, '/url?q=') !== false) {
-                    $url = preg_replace('/^.*?\/url\?q=([^&]+)&.*$/', '$1', $url);
-                    $url = urldecode($url);
+            // Try multiple link selectors
+            $linkSelectors = [
+                './/a[@href]',
+                './/h3/parent::a',
+                './/h3/parent::*/a',
+                './/h3/..//a'
+            ];
+            
+            $linkNodes = null;
+            
+            // Try each link selector
+            foreach ($linkSelectors as $linkSelector) {
+                $linkNodes = $xpath->query($linkSelector, $result);
+                if ($linkNodes && $linkNodes->length > 0) {
+                    break;
                 }
-                
-                // Extract the host from the URL for more accurate matching
-                $urlHost = parse_url($url, PHP_URL_HOST);
-                if (!$urlHost) {
-                    $urlHost = ''; // Handle case where parse_url fails
+            }
+
+            if (!$linkNodes || $linkNodes->length === 0) {
+                continue; // No link found, skip this result
+            }
+
+            // Get the URL from the first link
+            $url = $linkNodes->item(0)->getAttribute('href');
+            
+            // Clean and normalize the URL
+            if (strpos($url, '/url?') !== false || strpos($url, '/search?') !== false) {
+                // Extract URL from Google redirect
+                parse_str(parse_url($url, PHP_URL_QUERY), $params);
+                if (isset($params['q'])) {
+                    $url = $params['q'];
+                } elseif (isset($params['url'])) {
+                    $url = $params['url'];
                 }
-                
-                // Remove 'www.' from the URL host for consistent comparison
+            }
+            
+            // Ensure URL is properly decoded
+            $url = urldecode($url);
+            
+            // Try to extract hostname from URL
+            $urlHost = parse_url($url, PHP_URL_HOST);
+            
+            // If parsing failed or no host found, try to match the raw URL
+            if (empty($urlHost)) {
+                Log::warning("Failed to parse host from URL: {$url}");
+                $urlHost = "";
+            } else {
+                // Normalize the host by removing www.
                 $urlHost = preg_replace('/^www\./', '', $urlHost);
+            }
+            
+            Log::debug("Checking URL: {$url}, Host: {$urlHost}, Against Domain: {$domain}");
+            
+            // Multiple matching strategies
+            $isDomainMatch = false;
+            $matchStrategy = '';
+            
+            // Strategy 1: Exact domain match (most reliable)
+            if (strcasecmp($urlHost, $domain) === 0) {
+                $isDomainMatch = true;
+                $matchStrategy = 'exact_host';
+            }
+            // Strategy 2: Domain is a subdomain
+            elseif (preg_match("/\\.{$domain}$/i", $urlHost)) {
+                $isDomainMatch = true;
+                $matchStrategy = 'subdomain';
+            }
+            // Strategy 3: URL contains the domain (less reliable but catches more)
+            elseif (stripos($url, $domain) !== false) {
+                $isDomainMatch = true;
+                $matchStrategy = 'url_contains';
+            }
+
+            if ($isDomainMatch) {
+                // Extract the title - try different methods
+                $title = '';
+                $titleSelectors = [
+                    './/h3',
+                    './/h3[contains(@class, "LC20lb")]',
+                    './/a//text()'
+                ];
                 
-                // Check if the URL or URL host matches our domain
-                $isDomainMatch = false;
+                foreach ($titleSelectors as $titleSelector) {
+                    $titleNodes = $xpath->query($titleSelector, $result);
+                    if ($titleNodes && $titleNodes->length > 0) {
+                        $title = $titleNodes->item(0)->textContent;
+                        break;
+                    }
+                }
                 
-                // First, check exact host match (best match)
-                if ($urlHost === $domain) {
-                    $isDomainMatch = true;
-                    Log::debug("Exact domain match found: {$urlHost} === {$domain}");
-                } 
-                // Then check if domain is contained in URL (more permissive)
-                else if (strpos($url, $domain) !== false) {
-                    $isDomainMatch = true;
-                    Log::debug("Domain contained in URL: {$domain} found in {$url}");
+                // If still no title, use domain as fallback
+                if (empty(trim($title))) {
+                    $title = $domain;
                 }
 
-                if ($isDomainMatch) {
-                    // Extract the title
-                    $titleNodes = $xpath->query('.//h3', $result);
-                    $title = $titleNodes->length > 0 ? $titleNodes->item(0)->textContent : '';
-
-                    $positions[] = [
-                        'position' => $position,
-                        'page' => floor($start / 10) + 1,
-                        'url' => $url,
-                        'title' => $title,
-                        'type' => 'organic', // Default to organic results
-                        'is_target' => true, // Mark as target since it contains our domain
-                        'matched_domain' => $domain, // Store which domain pattern matched
-                    ];
-                    
-                    Log::info("Found match at position {$position} for domain {$domain}: {$url}");
-                }
+                $positions[] = [
+                    'position' => $position,
+                    'page' => floor($start / 10) + 1,
+                    'url' => $url,
+                    'title' => $title,
+                    'type' => 'organic', // Default to organic results
+                    'is_target' => true,
+                    'matched_domain' => $domain,
+                    'match_strategy' => $matchStrategy
+                ];
+                
+                Log::info("Found match at position {$position} for domain {$domain}: {$url} (Strategy: {$matchStrategy})");
             }
 
             $position++;
         }
 
+        Log::info("Found " . count($positions) . " positions for domain {$domain} on page " . (floor($start / 10) + 1));
         return $positions;
     }
 

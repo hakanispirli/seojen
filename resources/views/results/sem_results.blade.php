@@ -61,7 +61,7 @@
                     </div>
                     <div>
                         <span class="text-sm text-gray-500">Arama Zamanı:</span>
-                        <span class="text-sm font-medium text-gray-800 ml-1">{{ $searchResult['results']['timestamp'] ? round((time() - $searchResult['results']['timestamp'])/60, 2) : '-' }} dakika</span>
+                        <span class="text-sm font-medium text-gray-800 ml-1">{{ $searchResult['results']['search_time'] ?? '-' }} saniye</span>
                     </div>
                 </div>
             </div>
