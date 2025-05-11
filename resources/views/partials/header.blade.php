@@ -35,7 +35,8 @@
                     <div class="hidden group-hover:block absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg">
                         <a href="{{route('tools.keyword-density.index')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Anahtar Kelime Analizi</a>
                         <a href="{{route('tools.robots.index')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Robots.txt Oluşturucu</a>
-                        <a href="{{route('tools.domain-age.index')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Robots.txt Oluşturucu</a>
+                        <a href="{{route('tools.domain-age.index')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Domain Yaşı Sorgulama</a>
+                        <a href="{{route('sem.index')}}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">SEM Aracı</a>
                     </div>
                 </div>
             </div>
