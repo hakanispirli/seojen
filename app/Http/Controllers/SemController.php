@@ -46,20 +46,29 @@ class SemController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+            // Return validation errors based on request type
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            
+            return redirect()->back()->withErrors($validator)->withInput();
         }
 
         // Extract domain from website URL
         $website = $request->input('website');
         $domain = parse_url($website, PHP_URL_HOST);
         if (!$domain) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid website URL format'
-            ], 422);
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid website URL format'
+                ], 422);
+            }
+            
+            return redirect()->back()->with('error', 'Invalid website URL format')->withInput();
         }
 
         // Remove www. if present
@@ -68,7 +77,7 @@ class SemController extends Controller
         // Process the search
         try {
             $pages = $request->input('pages', $this->maxPages);
-            $checkAllPages = $request->input('check_all_pages', false);
+            $checkAllPages = $request->has('check_all_pages');
             $results = $this->processSearch($request->input('keyword'), $domain, $pages, $checkAllPages);
 
             // Save search to session history
@@ -96,17 +105,29 @@ class SemController extends Controller
             // Save back to session
             $request->session()->put('search_history', $searchHistory);
 
-            return response()->json([
-                'success' => true,
-                'data' => $results,
-                'search_id' => $searchId
-            ]);
+            // Return response based on request type
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $results,
+                    'search_id' => $searchId
+                ]);
+            }
+            
+            // Redirect to results page for form submissions
+            return redirect()->route('tools.sem.results', ['id' => $searchId]);
+            
         } catch (Exception $e) {
             Log::error('SEM search error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'An error occurred while processing your search: ' . $e->getMessage()
-            ], 500);
+            
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'An error occurred while processing your search: ' . $e->getMessage()
+                ], 500);
+            }
+            
+            return redirect()->back()->with('error', 'An error occurred while processing your search: ' . $e->getMessage())->withInput();
         }
     }
 

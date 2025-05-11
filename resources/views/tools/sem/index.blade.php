@@ -16,32 +16,46 @@
             @csrf
             <div>
                 <label for="keyword" class="block text-sm font-medium text-gray-700 mb-1">Anahtar Kelime</label>
-                <input type="text" id="keyword" name="keyword" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Aramak istediğiniz anahtar kelime" required>
+                <input type="text" id="keyword" name="keyword" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Aramak istediğiniz anahtar kelime" required value="{{ old('keyword') }}">
+                @error('keyword')<div class="text-red-500 text-sm mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div>
                 <label for="website" class="block text-sm font-medium text-gray-700 mb-1">Website URL</label>
-                <input type="url" id="website" name="website" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="https://ornek.com" required>
+                <input type="url" id="website" name="website" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="https://ornek.com" required value="{{ old('website') }}">
+                @error('website')<div class="text-red-500 text-sm mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div>
                 <label for="pages" class="block text-sm font-medium text-gray-700 mb-1">Kontrol Edilecek Sayfa Sayısı (Max 10)</label>
-                <input type="number" id="pages" name="pages" min="1" max="10" value="10" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <input type="number" id="pages" name="pages" min="1" max="10" value="{{ old('pages', 10) }}" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                @error('pages')<div class="text-red-500 text-sm mt-1">{{ $message }}</div>@enderror
             </div>
 
             <div class="flex items-center">
-                <input type="checkbox" id="check_all_pages" name="check_all_pages" value="1" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <input type="checkbox" id="check_all_pages" name="check_all_pages" value="1" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" {{ old('check_all_pages') ? 'checked' : '' }}>
                 <label for="check_all_pages" class="ml-2 block text-sm text-gray-700">Tüm sayfaları kontrol et (ilk sonuç bulunsa bile)</label>
             </div>
 
+            @if(session('error'))
+            <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-red-700">{{ session('error') }}</p>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <div class="pt-4">
                 <button type="submit" id="searchButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center justify-center">
-                    <svg id="searchIcon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <svg id="loadingIcon" class="w-5 h-5 mr-2 animate-spin hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     Sıralamayı Kontrol Et
                 </button>
@@ -145,112 +159,5 @@
     </div>
     @endif
 </div>
-
-@endsection
-
-@section('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const searchForm = document.getElementById('searchForm');
-    const searchButton = document.getElementById('searchButton');
-    const searchIcon = document.getElementById('searchIcon');
-    const loadingIcon = document.getElementById('loadingIcon');
-    const resultsDiv = document.getElementById('results');
-    const noResultsDiv = document.getElementById('no-results');
-    const foundResultsDiv = document.getElementById('found-results');
-
-    searchForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-
-        // UI göstergeleri
-        searchButton.disabled = true;
-        searchIcon.classList.add('hidden');
-        loadingIcon.classList.remove('hidden');
-        resultsDiv.classList.add('hidden');
-
-        // Form verilerini al
-        const formData = new FormData(searchForm);
-
-        // Fetch API ile POST isteği
-        fetch(searchForm.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // UI göstergeleri sıfırla
-            searchButton.disabled = false;
-            searchIcon.classList.remove('hidden');
-            loadingIcon.classList.add('hidden');
-            resultsDiv.classList.remove('hidden');
-
-            if (!data.success) {
-                alert(data.message || 'Bir hata oluştu.');
-                return;
-            }
-
-            // Sonuçları göster
-            document.getElementById('result-keyword').textContent = data.data.keyword;
-            document.getElementById('result-website').textContent = data.data.domain;
-            document.getElementById('result-pages').textContent = data.data.pages_checked;
-            document.getElementById('result-total').textContent = data.data.total_results.toLocaleString();
-
-            if (data.data.found && data.data.positions.length > 0) {
-                // Sonuçlar bulundu
-                noResultsDiv.classList.add('hidden');
-                foundResultsDiv.classList.remove('hidden');
-
-                // En iyi pozisyonu göster
-                const bestPosition = data.data.positions.reduce((min, p) => p.position < min ? p.position : min, data.data.positions[0].position);
-                document.getElementById('best-position').textContent = bestPosition;
-
-                // Tablo gövdesini temizle
-                const tableBody = document.getElementById('positions-table-body');
-                tableBody.innerHTML = '';
-
-                // Sonuçları tabloya ekle
-                data.data.positions.forEach(position => {
-                    const row = document.createElement('tr');
-                    row.className = position.position === bestPosition ? 'bg-green-50' : '';
-
-                    row.innerHTML = `
-                        <td class="py-2 px-4 border-b text-sm font-medium ${position.position === bestPosition ? 'text-green-600' : 'text-gray-800'}">${position.position}</td>
-                        <td class="py-2 px-4 border-b text-sm text-gray-600">${position.page}</td>
-                        <td class="py-2 px-4 border-b text-sm text-gray-800">${position.title}</td>
-                        <td class="py-2 px-4 border-b text-sm text-blue-600 truncate max-w-xs">
-                            <a href="${position.url}" target="_blank" class="hover:underline">${position.url}</a>
-                        </td>
-                    `;
-
-                    tableBody.appendChild(row);
-                });
-            } else {
-                // Sonuç bulunamadı
-                noResultsDiv.classList.remove('hidden');
-                foundResultsDiv.classList.add('hidden');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            // UI göstergeleri sıfırla
-            searchButton.disabled = false;
-            searchIcon.classList.remove('hidden');
-            loadingIcon.classList.add('hidden');
-
-            // Hata mesajı göster
-            alert('Arama işlemi sırasında bir hata oluştu. Lütfen tekrar deneyin.');
-        });
-    });
-});
-</script>
 @endsection
 
