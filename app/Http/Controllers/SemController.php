@@ -245,6 +245,8 @@ class SemController extends Controller
                         'page' => floor($start / 10) + 1,
                         'url' => $url,
                         'title' => $title,
+                        'type' => 'organic', // Default to organic results
+                        'is_target' => true, // Mark as target since it contains our domain
                     ];
                 }
             }
@@ -305,7 +307,7 @@ class SemController extends Controller
         $searchHistory = $request->session()->get('search_history', []);
 
         if (!isset($searchHistory[$id])) {
-            return redirect()->route('tools.tools.sem.index')->with('error', 'Search not found');
+            return redirect()->route('tools.sem.index')->with('error', 'Search not found');
         }
 
         $searchResult = $searchHistory[$id];

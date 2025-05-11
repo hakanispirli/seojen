@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Routing and Middleware
+
+- The main route definitions are in [routes/web.php](mdc:routes/web.php):
+  - Maps URLs to controller actions for SEO analysis, SEM tools, keyword density, domain age, and robots.txt generation.
+  - Uses route groups and prefixes for tool-specific endpoints (e.g., `/tools/robots`, `/tools/keyword-density`).
+  - The homepage (`/`) returns the main view, and `/analyze` handles SEO analysis POST requests.
+- Middleware such as `seo.limit` is applied to certain routes (e.g., `/analyze`) to limit request rates and prevent abuse.
+- Additional route files (e.g., [console.php](mdc:routes/console.php)) may define console commands or background jobs.
+
+Routing ensures that user requests are directed to the correct controllers and that rate limiting or other middleware is enforced where necessary.
+

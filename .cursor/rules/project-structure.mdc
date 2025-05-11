@@ -1,0 +1,19 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Project Structure Guide
+
+This project is a Laravel-based SEO analysis tool. Below are the main components and their purposes:
+
+- The main entry point for web requests is handled by [routes/web.php](mdc:routes/web.php), which maps URLs to controllers in [app/Http/Controllers/](mdc:app/Http/Controllers).
+- Business logic and SEO analysis are implemented in service classes under [app/Services/](mdc:app/Services) and [app/Services/SeoAnalyzer/](mdc:app/Services/SeoAnalyzer).
+- Views for the frontend are located in [resources/views/](mdc:resources/views), with the homepage at [index.blade.php](mdc:resources/views/index.blade.php) and results at [results.blade.php](mdc:resources/views/results.blade.php).
+- Configuration files are in [config/](mdc:config), including [app.php](mdc:config/app.php) and [database.php](mdc:config/database.php).
+- The main model is [User.php](mdc:app/Models/User.php).
+- Static assets (CSS, JS) are in [resources/css/](mdc:resources/css) and [resources/js/](mdc:resources/js).
+- The [README.md](mdc:README.md) provides an overview, setup instructions, and features.
+
+This structure follows Laravel conventions, making it easy to extend with new features or tools.
+

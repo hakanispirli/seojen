@@ -1,0 +1,17 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Configuration and Environment
+
+- Application configuration is managed in the [config/](mdc:config) directory:
+  - [app.php](mdc:config/app.php): Main application settings.
+  - [database.php](mdc:config/database.php): Database connection settings.
+  - Other files configure cache, mail, queue, services, etc.
+- Environment variables are set in a `.env` file, which is created from `.env.example` during setup (see [README.md](mdc:README.md)).
+- The application key is generated with `php artisan key:generate`.
+- Database migrations are run with `php artisan migrate`.
+
+Configuration files and environment variables allow the application to be customized for different deployments and local development.
+

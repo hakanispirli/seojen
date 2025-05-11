@@ -61,7 +61,7 @@
                     </div>
                     <div>
                         <span class="text-sm text-gray-500">Arama Zamanı:</span>
-                        <span class="text-sm font-medium text-gray-800 ml-1">{{ $searchResult['results']['search_time'] }} saniye</span>
+                        <span class="text-sm font-medium text-gray-800 ml-1">{{ $searchResult['results']['timestamp'] ? round((time() - $searchResult['results']['timestamp'])/60, 2) : '-' }} dakika</span>
                     </div>
                 </div>
             </div>
@@ -82,11 +82,11 @@
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             @foreach($searchResult['results']['positions'] as $position)
-                                <tr class="{{ $position['is_target'] ? 'bg-blue-50' : '' }}">
-                                    <td class="py-2 px-3 text-sm {{ $position['is_target'] ? 'font-bold text-blue-600' : 'text-gray-700' }}">{{ $position['position'] }}</td>
+                                <tr class="{{ $position['is_target'] ?? false ? 'bg-blue-50' : '' }}">
+                                    <td class="py-2 px-3 text-sm {{ $position['is_target'] ?? false ? 'font-bold text-blue-600' : 'text-gray-700' }}">{{ $position['position'] }}</td>
                                     <td class="py-2 px-3 text-sm text-gray-700">
                                         <div class="flex items-center">
-                                            @if($position['is_target'])
+                                            @if($position['is_target'] ?? false)
                                                 <svg class="w-4 h-4 mr-1 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                                                 </svg>
@@ -99,10 +99,10 @@
                                     <td class="py-2 px-3 text-sm text-gray-700 truncate max-w-xs">{{ $position['title'] }}</td>
                                     <td class="py-2 px-3 text-sm">
                                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                        {{ $position['type'] == 'organic' ? 'bg-green-100 text-green-800' :
-                                          ($position['type'] == 'paid' ? 'bg-purple-100 text-purple-800' :
-                                          'bg-gray-100 text-gray-800') }}">
-                                            {{ ucfirst($position['type']) }}
+                                        {{ isset($position['type']) ? ($position['type'] == 'organic' ? 'bg-green-100 text-green-800' : 
+                                          ($position['type'] == 'paid' ? 'bg-purple-100 text-purple-800' : 
+                                          'bg-gray-100 text-gray-800')) : 'bg-green-100 text-green-800' }}">
+                                            {{ isset($position['type']) ? ucfirst($position['type']) : 'Organic' }}
                                         </span>
                                     </td>
                                 </tr>
@@ -152,40 +152,14 @@
                     </svg>
                     Arama Geçmişine Dön
                 </a>
-                <div>
-                    <button id="downloadPdfBtn" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 mr-2">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        PDF İndir
-                    </button>
-                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // PDF İndirme İşlevi
-        document.getElementById('downloadPdfBtn').addEventListener('click', function() {
-            window.location.href = "{{ route('sem.download.pdf', ['id' => $searchResult['id']]) }}";
-        });
-
-        // Paylaşım Modalı İşlevleri
-        const shareModal = document.getElementById('shareModal');
-        const closeBtn = document.getElementById('closeShareBtn');
-
-        closeBtn.addEventListener('click', function() {
-            shareModal.classList.add('hidden');
-        });
-
-        // Modal dışına tıklama ile kapatma
-        window.addEventListener('click', function(event) {
-            if (event.target === shareModal) {
-                shareModal.classList.add('hidden');
-            }
-        });
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    // Any additional JavaScript if needed
+});
 </script>
 @endsection

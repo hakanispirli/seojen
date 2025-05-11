@@ -1,0 +1,17 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Views and Frontend
+
+- The main views are located in [resources/views/](mdc:resources/views):
+  - [index.blade.php](mdc:resources/views/index.blade.php): The homepage, where users can submit URLs for SEO analysis.
+  - [results.blade.php](mdc:resources/views/results.blade.php): Displays the results of an SEO analysis, including overall score and detailed breakdowns.
+  - [loading.blade.php](mdc:resources/views/loading.blade.php): Shows a loading state during analysis.
+  - The `results/`, `tools/`, `sections/`, `layouts/`, and `partials/` subdirectories contain partials and layouts for modular UI components.
+- Static assets are managed in [resources/css/](mdc:resources/css) and [resources/js/](mdc:resources/js).
+- The frontend uses TailwindCSS and Alpine.js for styling and interactivity, as described in the [README.md](mdc:README.md).
+
+Views are rendered by controllers and display analysis results, forms, and tool interfaces to the user.
+

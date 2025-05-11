@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Controllers and Services
+
+- The main controllers are in [app/Http/Controllers/](mdc:app/Http/Controllers):
+  - [SeoAnalyzerController.php](mdc:app/Http/Controllers/SeoAnalyzerController.php): Handles SEO analysis requests and returns results.
+  - [SemController.php](mdc:app/Http/Controllers/SemController.php): Manages SEM (Search Engine Marketing) keyword and domain position checks.
+  - [KeywordDensityController.php](mdc:app/Http/Controllers/KeywordDensityController.php): Analyzes keyword density for a given page.
+  - [DomainAgeController.php](mdc:app/Http/Controllers/DomainAgeController.php): Checks the age of a domain.
+  - [RobotsGeneratorController.php](mdc:app/Http/Controllers/RobotsGeneratorController.php): Generates and manages robots.txt files.
+
+- Core business logic is implemented in service classes:
+  - [SeoAnalyzerService.php](mdc:app/Services/SeoAnalyzerService.php): Orchestrates the SEO analysis process, calling specialized analyzers.
+  - [DomainAgeService.php](mdc:app/Services/DomainAgeService.php): Handles domain age lookups.
+  - [HttpClientKeywordService.php](mdc:app/Services/HttpClientKeywordService.php): Supports keyword-related HTTP requests.
+  - Specialized analyzers in [app/Services/SeoAnalyzer/](mdc:app/Services/SeoAnalyzer) handle meta, heading, image, performance, URL, technical, and link analysis.
+
+Controllers receive HTTP requests, validate input, and delegate analysis to the appropriate service classes, returning results to the user via views or JSON.
+
