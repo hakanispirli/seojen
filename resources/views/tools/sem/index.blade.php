@@ -12,7 +12,7 @@
     </div>
 
     <div class="bg-white border rounded-lg p-6 max-w-3xl mx-auto">
-        <form id="searchForm" class="space-y-4">
+        <form id="searchForm" action="{{ route('tools.sem.search') }}" method="POST" class="space-y-4">
             @csrf
             <div>
                 <label for="keyword" class="block text-sm font-medium text-gray-700 mb-1">Anahtar Kelime</label>
@@ -30,7 +30,7 @@
             </div>
 
             <div class="flex items-center">
-                <input type="checkbox" id="check_all_pages" name="check_all_pages" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <input type="checkbox" id="check_all_pages" name="check_all_pages" value="1" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
                 <label for="check_all_pages" class="ml-2 block text-sm text-gray-700">Tüm sayfaları kontrol et (ilk sonuç bulunsa bile)</label>
             </div>
 
@@ -118,7 +118,7 @@
     <div class="mt-8 bg-white border rounded-lg p-6 max-w-3xl mx-auto">
         <div class="flex items-center justify-between pb-4 border-b mb-4">
             <h3 class="text-lg font-semibold text-gray-800">Son Aramalar</h3>
-            <a href="{{ route('sem.history') }}" class="text-sm text-blue-600 hover:text-blue-800">Tüm Geçmişi Gör</a>
+            <a href="{{ route('tools.sem.history') }}" class="text-sm text-blue-600 hover:text-blue-800">Tüm Geçmişi Gör</a>
         </div>
 
         <div class="space-y-3">
@@ -132,7 +132,7 @@
                     <div class="text-xs {{ !empty($search['results']['positions']) ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }} px-2 py-1 rounded-full">
                         {{ !empty($search['results']['positions']) ? 'Bulundu' : 'Bulunamadı' }}
                     </div>
-                    <a href="{{ route('sem.results', $search['id']) }}" class="text-blue-600 hover:text-blue-800">
+                    <a href="{{ route('tools.sem.results', $search['id']) }}" class="text-blue-600 hover:text-blue-800">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -172,21 +172,31 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData(searchForm);
 
         // Fetch API ile POST isteği
-        fetch('{{ route("sem.search") }}', {
+        fetch(searchForm.action, {
             method: 'POST',
             body: formData,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             // UI göstergeleri sıfırla
             searchButton.disabled = false;
             searchIcon.classList.remove('hidden');
             loadingIcon.classList.add('hidden');
             resultsDiv.classList.remove('hidden');
+
+            if (!data.success) {
+                alert(data.message || 'Bir hata oluştu.');
+                return;
+            }
 
             // Sonuçları göster
             document.getElementById('result-keyword').textContent = data.data.keyword;
@@ -243,3 +253,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endsection
+

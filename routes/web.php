@@ -39,9 +39,11 @@ Route::prefix('tools/domain-age')->group(function () {
 });
 
 // SEM Tools
-Route::get('/sem', [SemController::class, 'index'])->name('sem.index');
-Route::post('/sem/search', [SemController::class, 'search'])->name('sem.search');
-Route::get('/sem/history', [SemController::class, 'history'])->name('sem.history');
-Route::get('/sem/results/{id}', [SemController::class, 'results'])->name('sem.results');
-Route::post('/sem/clear-history', [SemController::class, 'clearHistory'])->name('sem.clearHistory');
-Route::delete('/sem/delete-search/{id}', [SemController::class, 'deleteSearch'])->name('sem.deleteSearch');
+Route::prefix('tools/sem')->group(function () {
+    Route::get('/', [SemController::class, 'index'])->name('tools.sem.index');
+    Route::post('/search', [SemController::class, 'search'])->name('tools.sem.search');
+    Route::get('/history', [SemController::class, 'history'])->name('tools.sem.history');
+    Route::get('/results/{id}', [SemController::class, 'results'])->name('tools.sem.results');
+    Route::post('/clear-history', [SemController::class, 'clearHistory'])->name('tools.sem.clearHistory');
+    Route::delete('/delete-search/{id}', [SemController::class, 'deleteSearch'])->name('tools.sem.deleteSearch');
+});

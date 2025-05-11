@@ -14,7 +14,7 @@
     <div class="bg-white border rounded-lg p-6 max-w-4xl mx-auto">
         <div class="flex items-center justify-between pb-4 border-b mb-4">
             <div class="flex items-center">
-                <a href="{{ route('sem.index') }}" class="mr-2 text-blue-600 hover:text-blue-800">
+                <a href="{{ route('tools.sem.index') }}" class="mr-2 text-blue-600 hover:text-blue-800">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
@@ -23,7 +23,7 @@
             </div>
 
             @if(count($searchHistory) > 0)
-            <form action="{{ route('sem.clearHistory') }}" method="POST" onsubmit="return confirm('Tüm arama geçmişinizi silmek istediğinizden emin misiniz?');">
+            <form action="{{ route('tools.sem.clearHistory') }}" method="POST" onsubmit="return confirm('Tüm arama geçmişinizi silmek istediğinizden emin misiniz?');">
                 @csrf
                 <button type="submit" class="text-sm text-red-600 hover:text-red-800 font-medium">Geçmişi Temizle</button>
             </form>
@@ -61,13 +61,13 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 <div class="flex space-x-2">
-                                    <a href="{{ route('sem.results', $id) }}" class="text-blue-600 hover:text-blue-800" title="Görüntüle">
+                                    <a href="{{ route('tools.sem.results', $id) }}" class="text-blue-600 hover:text-blue-800" title="Görüntüle">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                         </svg>
                                     </a>
-                                    <form action="{{ route('sem.deleteSearch', $id) }}" method="POST" onsubmit="return confirm('Bu aramayı silmek istediğinizden emin misiniz?');" class="inline">
+                                    <form action="{{ route('tools.sem.deleteSearch', $id) }}" method="POST" onsubmit="return confirm('Bu aramayı silmek istediğinizden emin misiniz?');" class="inline">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="text-red-600 hover:text-red-800" title="Sil">
@@ -89,7 +89,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p class="text-gray-600 mb-2">Henüz bir arama geçmişiniz bulunmuyor.</p>
-                <a href="{{ route('sem.index') }}" class="text-blue-600 hover:underline font-medium">Aramaya Başla</a>
+                <a href="{{ route('tools.sem.index') }}" class="text-blue-600 hover:underline font-medium">Aramaya Başla</a>
             </div>
         @endif
     </div>

@@ -12,7 +12,7 @@
     <div class="bg-white border rounded-lg p-6 max-w-4xl mx-auto">
         <div class="flex items-center justify-between pb-4 border-b mb-4">
             <div class="flex items-center">
-                <a href="{{ route('sem.history') }}" class="mr-2 text-blue-600 hover:text-blue-800">
+                <a href="{{ route('tools.sem.history') }}" class="mr-2 text-blue-600 hover:text-blue-800">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
@@ -133,7 +133,7 @@
                 <h4 class="text-sm font-medium text-gray-700 mb-3">Önerilen Anahtar Kelimeler</h4>
                 <div class="flex flex-wrap gap-2">
                     @foreach($searchResult['results']['suggested_keywords'] as $keyword)
-                        <a href="{{ route('sem.search', ['keyword' => $keyword]) }}" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200">
+                        <a href="{{ route('tools.sem.search', ['keyword' => $keyword]) }}" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 hover:bg-gray-200">
                             {{ $keyword }}
                             <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
@@ -146,7 +146,7 @@
 
         <div class="border-t pt-4 mt-6">
             <div class="flex justify-between">
-                <a href="{{ route('sem.history') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                <a href="{{ route('tools.sem.history') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
                     </svg>
