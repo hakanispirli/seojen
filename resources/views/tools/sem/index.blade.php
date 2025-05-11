@@ -27,8 +27,8 @@
             </div>
 
             <div>
-                <label for="pages" class="block text-sm font-medium text-gray-700 mb-1">Kontrol Edilecek Sayfa Sayısı (Max 10)</label>
-                <input type="number" id="pages" name="pages" min="1" max="10" value="{{ old('pages', 10) }}" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <label for="pages" class="block text-sm font-medium text-gray-700 mb-1">Kontrol Edilecek Sayfa Sayısı (Max 2)</label>
+                <input type="number" id="pages" name="pages" min="1" max="2" value="{{ old('pages', 2) }}" class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500">
                 @error('pages')<div class="text-red-500 text-sm mt-1">{{ $message }}</div>@enderror
             </div>
 
