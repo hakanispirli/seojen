@@ -12,15 +12,31 @@ use Exception;
 
 class SemController extends Controller
 {
+    /**
+     * User agent strings to rotate through
+     */
     protected $userAgents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0',
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     ];
 
-    protected $searchBaseUrl = 'https://www.google.com/search';
-    protected $maxPages = 10; // Default 10 pages (100 results)
+    /**
+     * Search engine configuration
+     */
+    protected $searchEngines = [
+        'google' => [
+            'url' => 'https://www.google.com/search',
+            'resultsPerPage' => 10,
+            'maxPages' => 5, // Limit to 5 pages to avoid CAPTCHA
+        ],
+        'bing' => [
+            'url' => 'https://www.bing.com/search',
+            'resultsPerPage' => 10,
+            'maxPages' => 10,
+        ]
+    ];
 
     /**
      * Show the search form
@@ -34,19 +50,13 @@ class SemController extends Controller
     }
 
     /**
-     * Prepare domain for search by removing www and handling various formats
+     * Prepare domain for search
      */
     protected function prepareDomain($domain)
     {
         // Remove www. if present
         $domain = preg_replace('/^www\./', '', $domain);
-        
-        // Ensure domain is properly formatted
         $domain = trim($domain);
-        
-        // Log the prepared domain
-        Log::info("Prepared domain for search: {$domain}");
-        
         return $domain;
     }
 
@@ -91,22 +101,19 @@ class SemController extends Controller
         // Prepare domain for search
         $domain = $this->prepareDomain($domain);
         
-        // Log the domain and TLD for debugging
-        $domainParts = explode('.', $domain);
-        $tld = end($domainParts);
-        Log::info("Processing search for domain: {$domain} with TLD: {$tld}");
-
         // Process the search
         try {
-            $pages = $request->input('pages', $this->maxPages);
+            $pages = min($request->input('pages', 5), 5); // Limit to 5 pages max to prevent CAPTCHA
             $checkAllPages = $request->has('check_all_pages');
-            $results = $this->processSearch($request->input('keyword'), $domain, $pages, $checkAllPages);
-
-            // Save search to session history
-            $searchHistory = $request->session()->get('search_history', []);
+            
+            // Try search engines in order until one succeeds
+            $results = $this->searchWithFallback($request->input('keyword'), $domain, $pages, $checkAllPages);
 
             // Create a unique ID for this search
             $searchId = uniqid();
+
+            // Save search to session history
+            $searchHistory = $request->session()->get('search_history', []);
 
             // Add search to history
             $searchHistory[$searchId] = [
@@ -154,10 +161,11 @@ class SemController extends Controller
     }
 
     /**
-     * Process the search through Google
+     * Try multiple search engines with fallback
      */
-    protected function processSearch($keyword, $domain, $pages, $checkAllPages = false)
+    protected function searchWithFallback($keyword, $domain, $pages, $checkAllPages)
     {
+        $startTime = microtime(true);
         $result = [
             'keyword' => $keyword,
             'domain' => $domain,
@@ -166,86 +174,134 @@ class SemController extends Controller
             'found' => false,
             'total_results' => 0,
             'timestamp' => time(),
-            'search_time' => 0, // Track how long the search takes
+            'search_time' => 0,
+            'search_engine' => '',
         ];
-        
-        $startTime = microtime(true);
-        
-        // Determine if keyword is a domain name or contains a domain name
-        $isDomainSearch = (stripos($keyword, $domain) !== false) || 
-                          filter_var($keyword, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME);
-        
-        // For domain searches, we'll try multiple search variants
-        $searchQueries = [$keyword]; // Default to just the keyword
-        
-        if ($isDomainSearch) {
-            Log::info("Detected domain in keyword: {$keyword}");
-            // Add a site: search to help find the exact domain
-            $searchQueries[] = "site:{$domain}";
-            // Also search for the domain with quotes to get exact matches
-            $searchQueries[] = "\"{$domain}\"";
+
+        // First try with Google
+        try {
+            $googleResults = $this->processSingleEngineSearch('google', $keyword, $domain, $pages, $checkAllPages);
+            
+            if ($googleResults['found']) {
+                $result = array_merge($result, $googleResults);
+                $result['search_engine'] = 'Google';
+                Log::info("Search successful with Google");
+            } else {
+                // Then try with Bing if Google failed or found no results
+                Log::info("Google search found no results, trying Bing");
+                $bingResults = $this->processSingleEngineSearch('bing', $keyword, $domain, $pages, $checkAllPages);
+                
+                if ($bingResults['found']) {
+                    $result = array_merge($result, $bingResults);
+                    $result['search_engine'] = 'Bing';
+                    Log::info("Search successful with Bing");
+                } else {
+                    // If both engines failed, use any results we got
+                    $result = array_merge($result, 
+                        $googleResults['total_results'] > $bingResults['total_results'] 
+                            ? $googleResults 
+                            : $bingResults
+                    );
+                    $result['search_engine'] = $googleResults['total_results'] > $bingResults['total_results'] 
+                        ? 'Google' 
+                        : 'Bing';
+                }
+            }
+        } catch (Exception $e) {
+            // If Google throws error, try Bing
+            Log::warning("Google search error: " . $e->getMessage() . ". Trying Bing");
+            
+            try {
+                $bingResults = $this->processSingleEngineSearch('bing', $keyword, $domain, $pages, $checkAllPages);
+                $result = array_merge($result, $bingResults);
+                $result['search_engine'] = 'Bing';
+            } catch (Exception $e2) {
+                Log::error("Both search engines failed: " . $e2->getMessage());
+                throw new Exception("All search engines failed: " . $e2->getMessage());
+            }
+        }
+
+        // Calculate search time
+        $result['search_time'] = round(microtime(true) - $startTime, 2);
+        return $result;
+    }
+
+    /**
+     * Process search with a single engine
+     */
+    protected function processSingleEngineSearch($engine, $keyword, $domain, $pages, $checkAllPages)
+    {
+        if (!isset($this->searchEngines[$engine])) {
+            throw new Exception("Unknown search engine: $engine");
         }
         
-        $resultsPerPage = 10;
-        $searchDelay = rand(1, 2); // Slightly reduced delay to avoid long waits
-
-        // Try each search query until we find results
+        $config = $this->searchEngines[$engine];
+        $pages = min($pages, $config['maxPages']);
+        
+        $result = [
+            'positions' => [],
+            'found' => false,
+            'total_results' => 0,
+        ];
+        
+        // Generate search queries for better domain detection
+        $searchQueries = $this->generateSearchQueries($engine, $keyword, $domain);
+        $resultsPerPage = $config['resultsPerPage'];
+        
         foreach ($searchQueries as $searchQuery) {
-            Log::info("Trying search query: {$searchQuery}");
-            $tempResults = [
-                'positions' => [],
-                'found' => false,
-                'total_results' => 0,
-            ];
+            Log::info("Trying $engine search with query: $searchQuery");
             
-            // Search through requested number of pages
             for ($page = 0; $page < $pages; $page++) {
-                // Wait a bit before each request (except the first one)
+                // Progressive delay to avoid CAPTCHA
+                $delay = ($page + 1) * rand(2, 3);
                 if ($page > 0) {
-                    sleep($searchDelay);
+                    Log::info("Waiting $delay seconds before next page request");
+                    sleep($delay);
                 }
-
-                $start = $page * $resultsPerPage;
-                $html = $this->fetchSearchResults($searchQuery, $start);
-
-                if (!$html) {
-                    Log::warning("Failed to fetch results for page " . ($page+1));
-                    continue;
-                }
-
-                $positions = $this->parseSearchResults($html, $domain, $start);
-
-                // Add found positions to the temp results
-                if (!empty($positions)) {
-                    $tempResults['positions'] = array_merge($tempResults['positions'], $positions);
-                    $tempResults['found'] = true;
-                }
-
-                // Extract total results count (only need to do this once)
-                if ($page === 0 && $tempResults['total_results'] === 0) {
-                    $tempResults['total_results'] = $this->extractTotalResults($html);
-                    Log::info("Total results found: {$tempResults['total_results']} for query: {$searchQuery}");
-                }
-
-                // If we've found positions and not checking all pages, we can stop searching this query
-                if (!empty($positions) && !$checkAllPages) {
-                    break;
-                }
-            }
-            
-            // If we found positions with this query, use these results and stop trying other queries
-            if ($tempResults['found']) {
-                $result['positions'] = $tempResults['positions'];
-                $result['found'] = true;
-                $result['total_results'] = $tempResults['total_results'];
                 
-                Log::info("Found positions using query: {$searchQuery}. Stopping search.");
-                break;
+                $start = $page * $resultsPerPage;
+                
+                try {
+                    $html = $this->fetchSearchResults($engine, $searchQuery, $start);
+                    
+                    if (!$html) {
+                        Log::warning("No results from $engine for query: $searchQuery (page " . ($page+1) . ")");
+                        continue;
+                    }
+                    
+                    $positions = $this->parseSearchResults($engine, $html, $domain, $start);
+                    
+                    if (!empty($positions)) {
+                        $result['positions'] = array_merge($result['positions'], $positions);
+                        $result['found'] = true;
+                        
+                        // Extract total results count on first page
+                        if ($page === 0 && $result['total_results'] === 0) {
+                            $result['total_results'] = $this->extractTotalResults($engine, $html);
+                        }
+                        
+                        if (!$checkAllPages) {
+                            break; // Stop searching pages if we found results and aren't checking all
+                        }
+                    } else if ($page === 0) {
+                        // If first page has no results but we can extract total count
+                        $result['total_results'] = $this->extractTotalResults($engine, $html);
+                    }
+                } catch (Exception $e) {
+                    // Log issue and try next page
+                    Log::warning("Error searching $engine (page " . ($page+1) . "): " . $e->getMessage());
+                    
+                    // If we hit CAPTCHA or serious error, stop trying more pages
+                    if (stripos($e->getMessage(), 'captcha') !== false) {
+                        Log::error("CAPTCHA detected. Stopping search.");
+                        break;
+                    }
+                }
             }
             
-            // If we didn't find anything but got total results, at least record that
-            if ($tempResults['total_results'] > 0 && $result['total_results'] === 0) {
-                $result['total_results'] = $tempResults['total_results'];
+            // If we found positions with this query, stop trying other queries
+            if ($result['found']) {
+                break;
             }
         }
         
@@ -254,254 +310,366 @@ class SemController extends Controller
             usort($result['positions'], function($a, $b) {
                 return $a['position'] - $b['position'];
             });
+            
+            // Clean up duplicates
+            $urls = [];
+            $uniquePositions = [];
+            
+            foreach ($result['positions'] as $position) {
+                $url = $position['url'];
+                if (!in_array($url, $urls)) {
+                    $urls[] = $url;
+                    $uniquePositions[] = $position;
+                }
+            }
+            
+            $result['positions'] = $uniquePositions;
         }
-        
-        // Calculate search time in seconds
-        $result['search_time'] = round(microtime(true) - $startTime, 2);
-        Log::info("Search completed in {$result['search_time']} seconds");
         
         return $result;
     }
+    
+    /**
+     * Generate effective search queries
+     */
+    protected function generateSearchQueries($engine, $keyword, $domain)
+    {
+        $queries = [$keyword]; // Basic keyword search
+        
+        // Check if keyword contains the domain or is a domain-like structure
+        $isDomainSearch = (stripos($keyword, $domain) !== false || filter_var($keyword, FILTER_VALIDATE_DOMAIN));
+        
+        if ($isDomainSearch) {
+            // For domain searches, add specialized queries
+            if ($engine === 'google') {
+                $queries[] = "site:$domain"; // Google site: operator
+                $queries[] = "\"$domain\""; // Exact match
+            } else if ($engine === 'bing') {
+                $queries[] = "site:$domain"; // Bing also supports site:
+                $queries[] = "domain:$domain"; // Bing domain: operator
+            }
+        } else {
+            // For regular keyword searches, add domain-targeted queries
+            $queries[] = "$keyword site:$domain";
+            
+            // Check if keyword is likely a brand name or specific term
+            if (strlen($keyword) > 4 && !preg_match('/\s/', $keyword)) {
+                $queries[] = "\"$keyword\" $domain"; // Exact match keyword + domain
+            }
+        }
+        
+        return $queries;
+    }
 
     /**
-     * Fetch search results from Google
+     * Fetch search results from a search engine
      */
-    protected function fetchSearchResults($keyword, $start = 0)
+    protected function fetchSearchResults($engine, $query, $start = 0)
     {
-        // Random user agent to avoid blocking
+        if (!isset($this->searchEngines[$engine])) {
+            throw new Exception("Unknown search engine: $engine");
+        }
+        
+        $config = $this->searchEngines[$engine];
         $userAgent = $this->userAgents[array_rand($this->userAgents)];
-
-        // Enhance the search query with site-specific parameters if needed
-        $params = [
-            'q' => $keyword,
-            'start' => $start,
-            'num' => 10,
-            'hl' => 'en',   // Language for search interface
-            'gl' => 'us',   // Geographic location
-            'safe' => 'off', // No safesearch
-            'filter' => '0', // Show all results, don't filter similar results
-            'pws' => '0',    // Don't personalize search results
-        ];
-
+        $params = [];
+        
+        // Configure search parameters based on engine
+        if ($engine === 'google') {
+            $params = [
+                'q' => $query,
+                'start' => $start,
+                'num' => 10,
+                'hl' => 'en',
+                'gl' => 'us',
+            ];
+        } else if ($engine === 'bing') {
+            $params = [
+                'q' => $query,
+                'first' => $start + 1, // Bing uses 1-based indexing
+                'count' => 10,
+                'setlang' => 'en',
+            ];
+        }
+        
         try {
-            Log::info("Searching Google for: {$keyword} (start: {$start})");
+            Log::info("Fetching $engine search results for: '$query' (start: $start)");
             
             $response = Http::withHeaders([
                 'User-Agent' => $userAgent,
                 'Accept-Language' => 'en-US,en;q=0.9',
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Cache-Control' => 'no-cache',
-                'Pragma' => 'no-cache',
-            ])->timeout(15)->get($this->searchBaseUrl, $params);
-
+                'Referer' => $engine === 'google' ? 'https://www.google.com/' : 'https://www.bing.com/',
+            ])->timeout(10)->get($config['url'], $params);
+            
             if ($response->successful()) {
-                $responseBody = $response->body();
-                $responseSize = strlen($responseBody);
-                Log::info("Search successful, received {$responseSize} bytes");
+                $body = $response->body();
                 
-                // For debugging, save a sample of the HTML response
-                if ($start === 0) {
-                    Log::debug("HTML Response Sample: " . substr($responseBody, 0, 500) . "...");
+                // Check for CAPTCHA
+                if (stripos($body, 'captcha') !== false && 
+                   (stripos($body, 'unusual traffic') !== false || 
+                    stripos($body, 'automated requests') !== false)) {
+                    throw new Exception("CAPTCHA detected - search engine blocked automated requests");
                 }
                 
-                return $responseBody;
+                return $body;
             }
-
-            Log::error('Google search error: ' . $response->status() . ' - ' . $response->body());
+            
+            if ($response->status() === 429) {
+                throw new Exception("Rate limited by search engine (429 Too Many Requests)");
+            }
+            
+            Log::error("$engine search error: " . $response->status());
             return null;
         } catch (Exception $e) {
-            Log::error('Google search exception: ' . $e->getMessage());
-            return null;
+            // Trim any response body from exception message to avoid polluting logs
+            $message = $e->getMessage();
+            if (strlen($message) > 150) {
+                $message = substr($message, 0, 150) . '...';
+            }
+            
+            Log::error("$engine search exception: $message");
+            throw $e;
         }
     }
 
     /**
      * Parse the search results HTML
      */
-    protected function parseSearchResults($html, $domain, $start = 0)
+    protected function parseSearchResults($engine, $html, $domain, $start = 0)
     {
         $positions = [];
-
-        // Create a new DOM document
-        $dom = new DOMDocument();
-
+        $domParser = new DOMDocument();
+        
         // Suppress warnings for malformed HTML
         libxml_use_internal_errors(true);
-        $dom->loadHTML($html);
+        $domParser->loadHTML($html);
         libxml_clear_errors();
-
-        $xpath = new DOMXPath($dom);
-
-        // Find all search results - try multiple possible selectors because Google changes their HTML structure often
-        $searchSelectors = [
-            '//div[@class="g"]',           // Standard Google result container
-            '//div[contains(@class, "g")]', // Variation with additional classes
-            '//div[contains(@class, "tF2Cxc")]', // Another common result container
-            '//div[contains(@class, "yuRUbf")]', // Link container in results
-            '//div[@data-sokoban-container]' // Data attribute sometimes used
-        ];
         
-        $resultsCount = 0;
+        $xpath = new DOMXPath($domParser);
         $position = $start + 1;
         
-        // Try each selector until we find results
-        foreach ($searchSelectors as $selector) {
-            $searchResults = $xpath->query($selector);
-            $resultsCount = $searchResults->length;
-            
-            if ($resultsCount > 0) {
-                Log::info("Found {$resultsCount} results using selector: {$selector}");
+        // Select appropriate parsing strategy based on search engine
+        if ($engine === 'google') {
+            $positions = $this->parseGoogleResults($xpath, $domain, $position);
+        } else if ($engine === 'bing') {
+            $positions = $this->parseBingResults($xpath, $domain, $position);
+        }
+        
+        if (count($positions) > 0) {
+            Log::info("Found " . count($positions) . " matching results for domain $domain");
+        }
+        
+        return $positions;
+    }
+    
+    /**
+     * Parse Google search results
+     */
+    protected function parseGoogleResults($xpath, $domain, $position)
+    {
+        $positions = [];
+        
+        // Google result containers - try multiple selectors for robustness
+        $resultSelectors = [
+            '//div[@class="g"]',
+            '//div[contains(@class, "g")]',
+            '//div[contains(@class, "tF2Cxc")]',
+            '//div[@data-hveid]//div[@data-ved]'
+        ];
+        
+        $results = null;
+        
+        // Try each selector until we get results
+        foreach ($resultSelectors as $selector) {
+            $results = $xpath->query($selector);
+            if ($results && $results->length > 0) {
                 break;
             }
         }
         
-        if ($resultsCount === 0) {
-            Log::warning("No search results found with any selector. HTML structure may have changed.");
+        if (!$results || $results->length === 0) {
             return $positions;
         }
-
-        // Process each search result
-        foreach ($searchResults as $result) {
-            // Try multiple link selectors
+        
+        foreach ($results as $result) {
+            // Extract URL - try different selectors
+            $link = null;
+            $url = null;
+            
             $linkSelectors = [
                 './/a[@href]',
-                './/h3/parent::a',
-                './/h3/parent::*/a',
-                './/h3/..//a'
+                './/a[contains(@href, "http")]',
+                './/a[@ping]'
             ];
             
-            $linkNodes = null;
-            
-            // Try each link selector
-            foreach ($linkSelectors as $linkSelector) {
-                $linkNodes = $xpath->query($linkSelector, $result);
-                if ($linkNodes && $linkNodes->length > 0) {
+            foreach ($linkSelectors as $selector) {
+                $links = $xpath->query($selector, $result);
+                if ($links && $links->length > 0) {
+                    $link = $links->item(0);
+                    $url = $link->getAttribute('href');
                     break;
                 }
             }
-
-            if (!$linkNodes || $linkNodes->length === 0) {
-                continue; // No link found, skip this result
-            }
-
-            // Get the URL from the first link
-            $url = $linkNodes->item(0)->getAttribute('href');
             
-            // Clean and normalize the URL
-            if (strpos($url, '/url?') !== false || strpos($url, '/search?') !== false) {
-                // Extract URL from Google redirect
+            if (!$url) {
+                $position++;
+                continue;
+            }
+            
+            // Clean Google redirect URLs
+            if (strpos($url, '/url?') !== false) {
                 parse_str(parse_url($url, PHP_URL_QUERY), $params);
                 if (isset($params['q'])) {
                     $url = $params['q'];
-                } elseif (isset($params['url'])) {
-                    $url = $params['url'];
                 }
             }
             
-            // Ensure URL is properly decoded
-            $url = urldecode($url);
-            
-            // Try to extract hostname from URL
-            $urlHost = parse_url($url, PHP_URL_HOST);
-            
-            // If parsing failed or no host found, try to match the raw URL
-            if (empty($urlHost)) {
-                Log::warning("Failed to parse host from URL: {$url}");
-                $urlHost = "";
-            } else {
-                // Normalize the host by removing www.
-                $urlHost = preg_replace('/^www\./', '', $urlHost);
-            }
-            
-            Log::debug("Checking URL: {$url}, Host: {$urlHost}, Against Domain: {$domain}");
-            
-            // Multiple matching strategies
-            $isDomainMatch = false;
-            $matchStrategy = '';
-            
-            // Strategy 1: Exact domain match (most reliable)
-            if (strcasecmp($urlHost, $domain) === 0) {
-                $isDomainMatch = true;
-                $matchStrategy = 'exact_host';
-            }
-            // Strategy 2: Domain is a subdomain
-            elseif (preg_match("/\\.{$domain}$/i", $urlHost)) {
-                $isDomainMatch = true;
-                $matchStrategy = 'subdomain';
-            }
-            // Strategy 3: URL contains the domain (less reliable but catches more)
-            elseif (stripos($url, $domain) !== false) {
-                $isDomainMatch = true;
-                $matchStrategy = 'url_contains';
-            }
-
-            if ($isDomainMatch) {
-                // Extract the title - try different methods
+            // Check if this URL matches our domain
+            if ($this->isDomainMatch($url, $domain)) {
+                // Extract title
                 $title = '';
-                $titleSelectors = [
-                    './/h3',
-                    './/h3[contains(@class, "LC20lb")]',
-                    './/a//text()'
-                ];
-                
-                foreach ($titleSelectors as $titleSelector) {
-                    $titleNodes = $xpath->query($titleSelector, $result);
-                    if ($titleNodes && $titleNodes->length > 0) {
-                        $title = $titleNodes->item(0)->textContent;
-                        break;
-                    }
+                $titleNodes = $xpath->query('.//h3', $result);
+                if ($titleNodes && $titleNodes->length > 0) {
+                    $title = $titleNodes->item(0)->textContent;
                 }
                 
-                // If still no title, use domain as fallback
-                if (empty(trim($title))) {
-                    $title = $domain;
-                }
-
                 $positions[] = [
                     'position' => $position,
-                    'page' => floor($start / 10) + 1,
+                    'page' => floor(($position - 1) / 10) + 1,
                     'url' => $url,
-                    'title' => $title,
-                    'type' => 'organic', // Default to organic results
-                    'is_target' => true,
-                    'matched_domain' => $domain,
-                    'match_strategy' => $matchStrategy
+                    'title' => $title ?: $domain,
+                    'type' => 'organic',
+                    'is_target' => true
                 ];
                 
-                Log::info("Found match at position {$position} for domain {$domain}: {$url} (Strategy: {$matchStrategy})");
+                Log::info("Found match at position $position: $url");
             }
-
+            
             $position++;
         }
-
-        Log::info("Found " . count($positions) . " positions for domain {$domain} on page " . (floor($start / 10) + 1));
+        
         return $positions;
+    }
+    
+    /**
+     * Parse Bing search results
+     */
+    protected function parseBingResults($xpath, $domain, $position)
+    {
+        $positions = [];
+        
+        // Bing result containers
+        $results = $xpath->query('//li[@class="b_algo"]');
+        
+        if (!$results || $results->length === 0) {
+            return $positions;
+        }
+        
+        foreach ($results as $result) {
+            // Extract URL
+            $links = $xpath->query('.//h2/a', $result);
+            if (!$links || $links->length === 0) {
+                $position++;
+                continue;
+            }
+            
+            $link = $links->item(0);
+            $url = $link->getAttribute('href');
+            
+            // Check if this URL matches our domain
+            if ($this->isDomainMatch($url, $domain)) {
+                // Extract title
+                $title = $link->textContent;
+                
+                $positions[] = [
+                    'position' => $position,
+                    'page' => floor(($position - 1) / 10) + 1,
+                    'url' => $url,
+                    'title' => $title ?: $domain,
+                    'type' => 'organic',
+                    'is_target' => true
+                ];
+                
+                Log::info("Found match at position $position: $url");
+            }
+            
+            $position++;
+        }
+        
+        return $positions;
+    }
+    
+    /**
+     * Check if a URL matches a domain using multiple strategies
+     */
+    protected function isDomainMatch($url, $domain)
+    {
+        // Extract hostname from URL
+        $urlHost = parse_url($url, PHP_URL_HOST);
+        
+        // If parsing failed, try direct string matching
+        if (empty($urlHost)) {
+            return stripos($url, $domain) !== false;
+        }
+        
+        // Remove www. prefix for consistent comparison
+        $urlHost = preg_replace('/^www\./', '', $urlHost);
+        
+        // Strategy 1: Exact domain match (most reliable)
+        if (strcasecmp($urlHost, $domain) === 0) {
+            return true;
+        }
+        
+        // Strategy 2: Domain is a subdomain
+        if (preg_match("/\\.{$domain}$/i", $urlHost)) {
+            return true;
+        }
+        
+        // Strategy 3: URL contains the domain
+        if (stripos($url, $domain) !== false) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**
-     * Extract the total number of search results
+     * Extract total number of search results
      */
-    protected function extractTotalResults($html)
+    protected function extractTotalResults($engine, $html)
     {
-        // Create DOM document
         $dom = new DOMDocument();
         libxml_use_internal_errors(true);
         $dom->loadHTML($html);
         libxml_clear_errors();
-
+        
         $xpath = new DOMXPath($dom);
-
-        // Get the stats element
-        $statsNode = $xpath->query('//div[@id="result-stats"]');
-
-        if ($statsNode->length > 0) {
-            $stats = $statsNode->item(0)->textContent;
-            // Extract number from string like "About 1,570,000,000 results (0.35 seconds)"
-            if (preg_match('/[\d,]+/', $stats, $matches)) {
-                return (int) str_replace(',', '', $matches[0]);
+        
+        if ($engine === 'google') {
+            // Google result stats
+            $statsNode = $xpath->query('//div[@id="result-stats"]');
+            
+            if ($statsNode && $statsNode->length > 0) {
+                $stats = $statsNode->item(0)->textContent;
+                // Extract number from string like "About 1,570,000,000 results (0.35 seconds)"
+                if (preg_match('/[\d,\.]+/', $stats, $matches)) {
+                    return (int) str_replace([',', '.'], '', $matches[0]);
+                }
+            }
+        } else if ($engine === 'bing') {
+            // Bing result count
+            $countNode = $xpath->query('//span[@class="sb_count"]');
+            
+            if ($countNode && $countNode->length > 0) {
+                $count = $countNode->item(0)->textContent;
+                // Extract number from string like "1,570,000 results"
+                if (preg_match('/[\d,\.]+/', $count, $matches)) {
+                    return (int) str_replace([',', '.'], '', $matches[0]);
+                }
             }
         }
-
+        
         return 0;
     }
 
